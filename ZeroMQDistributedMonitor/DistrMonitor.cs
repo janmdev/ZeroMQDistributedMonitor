@@ -8,7 +8,6 @@ namespace ZeroMQDistributedMonitor
     {
         private readonly string _objTopic = "obj";
         private readonly string _lockTopic = "lock";
-        private readonly string _syncTopic = "sync";
         public DistrMonitor(T obj, string pubAddress, IEnumerable<string> subAddresses)
         {
             locked = false;
@@ -25,15 +24,12 @@ namespace ZeroMQDistributedMonitor
                 subSocket.Connect($"tcp://{item}");
                 subSocket.Subscribe(_objTopic);
                 subSocket.Subscribe(_lockTopic);
-                subSocket.Subscribe(_syncTopic);
             }
             Task.Run(receiveMessages);
         }
 
         private bool locked;
-        private bool processing;
         private T distributedObject;
-        private int index;
         private IEnumerable<string> address;
 
         private PublisherSocket pubSocket;
@@ -43,7 +39,8 @@ namespace ZeroMQDistributedMonitor
         {
             lock(this)
             {
-                while (locked) Monitor.Wait(this);
+                while (locked) 
+                    Monitor.Wait(this);
                 sendLock();
                 var res = func.Invoke(distributedObject);
                 sendDistrObj();
@@ -68,13 +65,10 @@ namespace ZeroMQDistributedMonitor
             Msg msg = new Msg();
             msg.InitPool(serialized.Length);
             msg.Put(serialized, 0, serialized.Length);
-            pubSocket.SendMoreFrame(_syncTopic).Send(ref msg, false);
-            //pubSocket.Send()
         }
 
         private void sendLock()
         {
-            processing = true;
             Msg msg = new Msg();
             msg.InitPool(1);
             msg.Put(new byte[] { 1 }, 0, 1);
@@ -87,10 +81,9 @@ namespace ZeroMQDistributedMonitor
             msg.InitPool(1);
             msg.Put(new byte[] { 0 }, 0, 1);
             pubSocket.SendMoreFrame(_lockTopic).Send(ref msg, false);
-            processing = false;
         }
 
-        private async Task receiveMessages()
+        private Task receiveMessages()
         {
             while(true)
             {
@@ -112,16 +105,8 @@ namespace ZeroMQDistributedMonitor
                 }
                 if(topic == _objTopic)
                 {
-                    if(processing == true)
-                    {
-
-                    }
                     T receivedDeserialized = MessagePackSerializer.Deserialize<T>(receivedObj);
                     distributedObject = receivedDeserialized;
-                }
-                if(topic == _syncTopic)
-                {
-
                 }
             }
         }

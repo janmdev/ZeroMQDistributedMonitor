@@ -8,14 +8,15 @@ using (var monitor = new DistrMonitor<List<int>>(new List<int>(), "127.0.0.1:666
     {
         monitor.Execute(list =>
         {
+            Console.WriteLine("pre {" + String.Join(",", list.Select(p => p.ToString()).ToArray()) + "}");
             if (list.Count > 0)
             {
                 list.RemoveAt(0);
-                Console.WriteLine(list.Count);
-                Thread.Sleep(500);
+                Console.WriteLine("post {" + String.Join(",", list.Select(p => p.ToString()).ToArray()) + "}");
+            
             }
             return list;
         });
-        //Thread.Sleep(100);
+        Thread.Sleep(50);
     }
 }
