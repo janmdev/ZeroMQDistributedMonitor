@@ -8,12 +8,11 @@ namespace ZeroMQDistributedMonitor
     {
         private readonly string _objTopic = "obj";
         private readonly string _lockTopic = "lock";
-        public DistrMonitor(T obj, string pubAddress, IEnumerable<string> subAddresses)
+        public DistrMonitor(string pubAddress, IEnumerable<string> subAddresses)
         {
             locked = false;
-            if(obj == null) throw new ArgumentNullException(nameof(obj));
-            distributedObject = obj;
-            this.address = subAddresses;
+            distributedObject = default;
+            this.address = subAddresses.Select(p => new RaftAddr(p));
             pubSocket = new PublisherSocket();
 
             pubSocket.Bind($"tcp://{pubAddress}");
@@ -30,7 +29,7 @@ namespace ZeroMQDistributedMonitor
 
         private bool locked;
         private T distributedObject;
-        private IEnumerable<string> address;
+        private IEnumerable<RaftAddr> address;
 
         private PublisherSocket pubSocket;
         private SubscriberSocket subSocket;
@@ -42,7 +41,7 @@ namespace ZeroMQDistributedMonitor
                 while (locked) 
                     Monitor.Wait(this);
                 sendLock();
-                var res = func.Invoke(distributedObject);
+                distributedObject = func.Invoke(distributedObject);
                 sendDistrObj();
                 sendRelease();
                 Monitor.Pulse(this);
@@ -56,15 +55,6 @@ namespace ZeroMQDistributedMonitor
             msg.InitPool(serialized.Length);
             msg.Put(serialized,0, serialized.Length);
             pubSocket.SendMoreFrame(_objTopic).Send(ref msg, false);
-            //pubSocket.Send()
-        }
-
-        private void sendSyncObj()
-        {
-            var serialized = MessagePackSerializer.Serialize(typeof(T), distributedObject);
-            Msg msg = new Msg();
-            msg.InitPool(serialized.Length);
-            msg.Put(serialized, 0, serialized.Length);
         }
 
         private void sendLock()
@@ -87,6 +77,7 @@ namespace ZeroMQDistributedMonitor
         {
             while(true)
             {
+
                 string topic = subSocket.ReceiveFrameString();
                 byte[] receivedObj = subSocket.ReceiveFrameBytes();
                 if(topic == _lockTopic)
@@ -100,7 +91,6 @@ namespace ZeroMQDistributedMonitor
                     if (receivedObj.First() == 1)
                     {
                         locked = true;
-
                     }
                 }
                 if(topic == _objTopic)
@@ -115,6 +105,17 @@ namespace ZeroMQDistributedMonitor
         {
             pubSocket?.Dispose();
             subSocket?.Dispose();
+        }
+
+        private class RaftAddr
+        {
+            public RaftAddr(string address)
+            {
+                Address = address;
+            }
+
+            public string Address { get; set; }
+            public bool IsLeader { get; set; }
         }
     }
 }
