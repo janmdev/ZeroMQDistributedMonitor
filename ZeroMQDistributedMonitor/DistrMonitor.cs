@@ -12,7 +12,6 @@ namespace ZeroMQDistributedMonitor
         {
             locked = false;
             distributedObject = default;
-            this.address = subAddresses.Select(p => new RaftAddr(p));
             pubSocket = new PublisherSocket();
 
             pubSocket.Bind($"tcp://{pubAddress}");
@@ -29,7 +28,6 @@ namespace ZeroMQDistributedMonitor
 
         private bool locked;
         private T distributedObject;
-        private IEnumerable<RaftAddr> address;
 
         private PublisherSocket pubSocket;
         private SubscriberSocket subSocket;
@@ -105,17 +103,6 @@ namespace ZeroMQDistributedMonitor
         {
             pubSocket?.Dispose();
             subSocket?.Dispose();
-        }
-
-        private class RaftAddr
-        {
-            public RaftAddr(string address)
-            {
-                Address = address;
-            }
-
-            public string Address { get; set; }
-            public bool IsLeader { get; set; }
         }
     }
 }
