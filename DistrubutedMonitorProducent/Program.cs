@@ -15,7 +15,7 @@ Task.Run(() =>
                 if (list.Count <= 20)
                 {
                     list.Add(counter++);
-                    Console.WriteLine("P1: {" + String.Join(",", list.Select(p => p.ToString()).ToArray()) + "}");
+                    //Console.WriteLine("P1: {" + String.Join(",", list.Select(p => p.ToString()).ToArray()) + "}");
                 }
                 return list;
             });
@@ -42,7 +42,7 @@ Task.Run(() =>
                 {
                     counter += 10;
                     list.Add(counter);
-                    Console.WriteLine("P2: {" + String.Join(",", list.Select(p => p.ToString()).ToArray()) + "}");
+                    //Console.WriteLine("P2: {" + String.Join(",", list.Select(p => p.ToString()).ToArray()) + "}");
                 }
                 return list;
             });

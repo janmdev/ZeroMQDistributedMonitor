@@ -1,6 +1,7 @@
 ﻿using NetMQ;
 using NetMQ.Sockets;
 using MessagePack;
+using System.Collections.Generic;
 
 namespace ZeroMQDistributedMonitor
 {
@@ -11,7 +12,7 @@ namespace ZeroMQDistributedMonitor
         public DistrMonitor(string pubAddress, IEnumerable<string> subAddresses)
         {
             locked = false;
-            distributedObject = default;
+            distributedObject = new VersionedObj<T>();
             this.address = subAddresses.Select(p => new RaftAddr(p));
             pubSocket = new PublisherSocket();
 
@@ -27,8 +28,23 @@ namespace ZeroMQDistributedMonitor
             Task.Run(receiveMessages);
         }
 
+        private int _lockedVersion;
+        private int lockVersion
+        {
+            get
+            {
+                return _lockedVersion;
+            }
+            set
+            {
+                if(value >= Int32.MaxValue)
+                {
+                    _lockedVersion = Int32.MinValue;
+                }
+            }
+        }
         private bool locked;
-        private T distributedObject;
+        private VersionedObj<T> distributedObject;
         private IEnumerable<RaftAddr> address;
 
         private PublisherSocket pubSocket;
@@ -38,19 +54,28 @@ namespace ZeroMQDistributedMonitor
         {
             lock(this)
             {
-                while (locked) 
+                if (distributedObject is List<int> lst)
+                {
+                    Console.WriteLine("pre {" + String.Join(",", lst.Select(p => p.ToString()).ToArray()) + "}");
+                }
+                while (locked)
                     Monitor.Wait(this);
                 sendLock();
-                distributedObject = func.Invoke(distributedObject);
+                distributedObject.Value = func.Invoke(distributedObject.Value);
+                distributedObject.Version++;
                 sendDistrObj();
                 sendRelease();
                 Monitor.Pulse(this);
+                if (distributedObject is List<int> lst2)
+                {
+                    Console.WriteLine("post {" + String.Join(",", lst2.Select(p => p.ToString()).ToArray()) + "}");
+                }
             }
         }
 
         private void sendDistrObj()
         {
-            var serialized = MessagePackSerializer.Serialize(typeof(T), distributedObject);
+            var serialized = MessagePackSerializer.Serialize(typeof(VersionedObj<T>), distributedObject);
             Msg msg = new Msg();
             msg.InitPool(serialized.Length);
             msg.Put(serialized,0, serialized.Length);
@@ -77,7 +102,6 @@ namespace ZeroMQDistributedMonitor
         {
             while(true)
             {
-
                 string topic = subSocket.ReceiveFrameString();
                 byte[] receivedObj = subSocket.ReceiveFrameBytes();
                 if(topic == _lockTopic)
@@ -95,8 +119,12 @@ namespace ZeroMQDistributedMonitor
                 }
                 if(topic == _objTopic)
                 {
-                    T receivedDeserialized = MessagePackSerializer.Deserialize<T>(receivedObj);
-                    distributedObject = receivedDeserialized;
+                    VersionedObj<T> receivedDeserialized = MessagePackSerializer.Deserialize<VersionedObj<T>>(receivedObj);
+                    if(receivedDeserialized.Version < distributedObject.Version)
+                    {
+                        sendDistrObj();
+                    }
+                    else distributedObject = receivedDeserialized;
                 }
             }
         }
