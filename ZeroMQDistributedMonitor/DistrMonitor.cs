@@ -36,10 +36,10 @@ namespace ZeroMQDistributedMonitor
         {
             lock(this)
             {
+                Console.WriteLine(locked ? "locked" : "");
                 while (locked) 
                     Monitor.Wait(this);
                 sendLock();
-                distributedObject = lastDistrObj;
                 if (distributedObject is List<int> lst)
                 {
                     Console.WriteLine("pre {" + String.Join(",", lst.Select(p => p.ToString()).ToArray()) + "}");
@@ -102,7 +102,7 @@ namespace ZeroMQDistributedMonitor
                 }
                 if(topic == _objTopic)
                 {
-                    lastDistrObj = MessagePackSerializer.Deserialize<T>(receivedObj);
+                    distributedObject = MessagePackSerializer.Deserialize<T>(receivedObj);
                 }
             }
         }
