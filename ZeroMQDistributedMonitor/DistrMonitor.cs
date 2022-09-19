@@ -6,13 +6,12 @@ namespace ZeroMQDistributedMonitor
 {
     public class DistrMonitor<T> : IDisposable
     {
-        private readonly string _objTopic = "obj";
-        private readonly string _lockTopic = "lock";
+        private readonly string _allTopic = "all";
+        //private readonly string _lockTopic = "lock";
         public DistrMonitor(string pubAddress, IEnumerable<string> subAddresses)
         {
             locked = false;
             distributedObject = default;
-            this.address = subAddresses.Select(p => new RaftAddr(p));
             pubSocket = new PublisherSocket();
 
             pubSocket.Bind($"tcp://{pubAddress}");
@@ -21,15 +20,13 @@ namespace ZeroMQDistributedMonitor
             foreach(var item in subAddresses)
             {
                 subSocket.Connect($"tcp://{item}");
-                subSocket.Subscribe(_objTopic);
-                subSocket.Subscribe(_lockTopic);
+                subSocket.Subscribe(_allTopic);
             }
             Task.Run(receiveMessages);
         }
 
         private bool locked;
         private T distributedObject;
-        private IEnumerable<RaftAddr> address;
 
         private PublisherSocket pubSocket;
         private SubscriberSocket subSocket;
@@ -38,6 +35,10 @@ namespace ZeroMQDistributedMonitor
         {
             lock(this)
             {
+                if (distributedObject is List<int> lst)
+                {
+                    Console.WriteLine("pre {" + String.Join(",", lst.Select(p => p.ToString()).ToArray()) + "}");
+                }
                 while (locked) 
                     Monitor.Wait(this);
                 sendLock();
@@ -45,6 +46,10 @@ namespace ZeroMQDistributedMonitor
                 sendDistrObj();
                 sendRelease();
                 Monitor.Pulse(this);
+                if (distributedObject is List<int> lst2)
+                {
+                    Console.WriteLine("post {" + String.Join(",", lst2.Select(p => p.ToString()).ToArray()) + "}\n");
+                }
             }
         }
 
@@ -54,7 +59,7 @@ namespace ZeroMQDistributedMonitor
             Msg msg = new Msg();
             msg.InitPool(serialized.Length);
             msg.Put(serialized,0, serialized.Length);
-            pubSocket.SendMoreFrame(_objTopic).Send(ref msg, false);
+            pubSocket.SendMoreFrame(_allTopic).Send(ref msg, false);
         }
 
         private void sendLock()
@@ -62,7 +67,7 @@ namespace ZeroMQDistributedMonitor
             Msg msg = new Msg();
             msg.InitPool(1);
             msg.Put(new byte[] { 1 }, 0, 1);
-            pubSocket.SendMoreFrame(_lockTopic).Send(ref msg, false);
+            pubSocket.SendMoreFrame(_allTopic).Send(ref msg, false);
         }
 
         private void sendRelease()
@@ -70,17 +75,16 @@ namespace ZeroMQDistributedMonitor
             Msg msg = new Msg();
             msg.InitPool(1);
             msg.Put(new byte[] { 0 }, 0, 1);
-            pubSocket.SendMoreFrame(_lockTopic).Send(ref msg, false);
+            pubSocket.SendMoreFrame(_allTopic).Send(ref msg, false);
         }
 
         private Task receiveMessages()
         {
             while(true)
             {
-
                 string topic = subSocket.ReceiveFrameString();
                 byte[] receivedObj = subSocket.ReceiveFrameBytes();
-                if(topic == _lockTopic)
+                if(receivedObj.Length == 1)
                 {
                     if (receivedObj.First() == 0)
                     {
@@ -93,7 +97,7 @@ namespace ZeroMQDistributedMonitor
                         locked = true;
                     }
                 }
-                if(topic == _objTopic)
+                else
                 {
                     T receivedDeserialized = MessagePackSerializer.Deserialize<T>(receivedObj);
                     distributedObject = receivedDeserialized;
@@ -105,17 +109,6 @@ namespace ZeroMQDistributedMonitor
         {
             pubSocket?.Dispose();
             subSocket?.Dispose();
-        }
-
-        private class RaftAddr
-        {
-            public RaftAddr(string address)
-            {
-                Address = address;
-            }
-
-            public string Address { get; set; }
-            public bool IsLeader { get; set; }
         }
     }
 }
