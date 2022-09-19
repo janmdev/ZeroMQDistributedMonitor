@@ -39,7 +39,16 @@ namespace ZeroMQDistributedMonitor
                 while (locked) 
                     Monitor.Wait(this);
                 sendLock();
+                distributedObject = lastDistrObj;
+                if (distributedObject is List<int> lst)
+                {
+                    Console.WriteLine("pre {" + String.Join(",", lst.Select(p => p.ToString()).ToArray()) + "}");
+                }
                 distributedObject = func.Invoke(distributedObject);
+                if (distributedObject is List<int> lst2)
+                {
+                    Console.WriteLine("post {" + String.Join(",", lst2.Select(p => p.ToString()).ToArray()) + "}");
+                }
                 sendDistrObj();
                 sendRelease();
                 Monitor.Pulse(this);
@@ -93,11 +102,12 @@ namespace ZeroMQDistributedMonitor
                 }
                 if(topic == _objTopic)
                 {
-                    T receivedDeserialized = MessagePackSerializer.Deserialize<T>(receivedObj);
-                    distributedObject = receivedDeserialized;
+                    lastDistrObj = MessagePackSerializer.Deserialize<T>(receivedObj);
                 }
             }
         }
+
+        private T lastDistrObj;
 
         public void Dispose()
         {
