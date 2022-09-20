@@ -9,6 +9,7 @@ Task.Run(() =>
         int counter = 0;
         while (true)
         {
+            Thread.Sleep(500);
             monitor.Execute(list =>
             {
                 if (list == default) list = new List<int>();

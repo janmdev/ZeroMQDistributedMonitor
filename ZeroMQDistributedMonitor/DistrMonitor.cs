@@ -1,6 +1,7 @@
 ﻿using NetMQ;
 using NetMQ.Sockets;
 using MessagePack;
+using System.Threading;
 
 namespace ZeroMQDistributedMonitor
 {
@@ -27,6 +28,7 @@ namespace ZeroMQDistributedMonitor
         }
 
         private bool locked;
+        private bool interLocked;
         private T distributedObject;
 
         private PublisherSocket pubSocket;
@@ -70,6 +72,7 @@ namespace ZeroMQDistributedMonitor
             msg.InitPool(1);
             msg.Put(new byte[] { 1 }, 0, 1);
             pubSocket.SendMoreFrame(_lockTopic).Send(ref msg, false);
+            interLocked = true;
         }
 
         private void sendRelease()
@@ -78,13 +81,13 @@ namespace ZeroMQDistributedMonitor
             msg.InitPool(1);
             msg.Put(new byte[] { 0 }, 0, 1);
             pubSocket.SendMoreFrame(_lockTopic).Send(ref msg, false);
+            interLocked = false;
         }
 
         private Task receiveMessages()
         {
             while(true)
             {
-
                 string topic = subSocket.ReceiveFrameString();
                 byte[] receivedObj = subSocket.ReceiveFrameBytes();
                 if(topic == _lockTopic)
@@ -102,6 +105,7 @@ namespace ZeroMQDistributedMonitor
                 }
                 if(topic == _objTopic)
                 {
+                    if (interLocked) Console.WriteLine("INTERLOCKED");
                     distributedObject = MessagePackSerializer.Deserialize<T>(receivedObj);
                 }
             }

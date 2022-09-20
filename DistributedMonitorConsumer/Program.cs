@@ -8,6 +8,7 @@ using (var monitor = new DistrMonitor<List<int>>("127.0.0.1:6664", new string[] 
     {
         monitor.Execute(list =>
         {
+            Thread.Sleep(1000);
             if (list == null) list = new List<int>();
             //Console.WriteLine("pre {" + String.Join(",", list.Select(p => p.ToString()).ToArray()) + "}");
             if (list.Count > 0)
