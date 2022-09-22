@@ -2,23 +2,23 @@
 
 Console.WriteLine("Consumer");
 
-using (var monitor = new DistrMonitor<List<int>>("127.0.0.1:6664", new string[] { "127.0.0.1:6665", "127.0.0.1:6666" }))
+using (var monitor = new DistrMonitor<List<int>>("127.0.0.1:6664", new string[] { "127.0.0.1:6665", "127.0.0.1:6666" }, false))
 {
     while (true)
     {
         monitor.Execute(list =>
         {
-            Thread.Sleep(1000);
+            Thread.Sleep(200);
             if (list == null) list = new List<int>();
             //Console.WriteLine("pre {" + String.Join(",", list.Select(p => p.ToString()).ToArray()) + "}");
             if (list.Count > 0)
             {
                 list.RemoveAt(0);
                 //Console.WriteLine("post {" + String.Join(",", list.Select(p => p.ToString()).ToArray()) + "}");
-            
+
             }
             return list;
         });
-        Thread.Sleep(120);
+        //Thread.Sleep(120);
     }
 }

@@ -7,21 +7,20 @@ namespace ZeroMQDistributedMonitor
 {
     public class DistrMonitor<T> : IDisposable
     {
-        private readonly string _objTopic = "obj";
+        //private readonly string _objTopic = "obj";
         private readonly string _lockTopic = "lock";
-        public DistrMonitor(string pubAddress, IEnumerable<string> subAddresses)
+        public DistrMonitor(string pubAddress, IEnumerable<string> subAddresses, bool initLock = true)
         {
-            locked = false;
+            locked = initLock;
             distributedObject = default;
             pubSocket = new PublisherSocket();
-
             pubSocket.Bind($"tcp://{pubAddress}");
             
             subSocket = new SubscriberSocket();
             foreach(var item in subAddresses)
             {
                 subSocket.Connect($"tcp://{item}");
-                subSocket.Subscribe(_objTopic);
+                //subSocket.Subscribe(_objTopic);
                 subSocket.Subscribe(_lockTopic);
             }
             Task.Run(receiveMessages);
@@ -29,7 +28,7 @@ namespace ZeroMQDistributedMonitor
 
         private bool locked;
         private bool interLocked;
-        private T distributedObject;
+        private T distributedObject { get; set; }
 
         private PublisherSocket pubSocket;
         private SubscriberSocket subSocket;
@@ -38,7 +37,7 @@ namespace ZeroMQDistributedMonitor
         {
             lock(this)
             {
-                Console.WriteLine(locked ? "locked" : "");
+                //Console.WriteLine(locked ? "locked" : "");
                 while (locked) 
                     Monitor.Wait(this);
                 sendLock();
@@ -51,35 +50,37 @@ namespace ZeroMQDistributedMonitor
                 {
                     Console.WriteLine("post {" + String.Join(",", lst2.Select(p => p.ToString()).ToArray()) + "}");
                 }
-                sendDistrObj();
-                sendRelease();
+                //sendDistrObj();
+                sendRelease(distributedObject);
                 Monitor.Pulse(this);
             }
         }
 
-        private void sendDistrObj()
+        /*private void sendDistrObj()
         {
             var serialized = MessagePackSerializer.Serialize(typeof(T), distributedObject);
             Msg msg = new Msg();
             msg.InitPool(serialized.Length);
             msg.Put(serialized,0, serialized.Length);
             pubSocket.SendMoreFrame(_objTopic).Send(ref msg, false);
-        }
+        }*/
 
         private void sendLock()
         {
+            var serialized = MessagePackSerializer.Serialize(typeof(Lock<T>), new Lock<T>(true));
             Msg msg = new Msg();
-            msg.InitPool(1);
-            msg.Put(new byte[] { 1 }, 0, 1);
+            msg.InitPool(serialized.Length);
+            msg.Put(serialized, 0, serialized.Length);
             pubSocket.SendMoreFrame(_lockTopic).Send(ref msg, false);
             interLocked = true;
         }
 
-        private void sendRelease()
+        private void sendRelease(T obj)
         {
+            var serialized = MessagePackSerializer.Serialize(typeof(Lock<T>), new Lock<T>(false, obj));
             Msg msg = new Msg();
-            msg.InitPool(1);
-            msg.Put(new byte[] { 0 }, 0, 1);
+            msg.InitPool(serialized.Length);
+            msg.Put(serialized, 0, serialized.Length);
             pubSocket.SendMoreFrame(_lockTopic).Send(ref msg, false);
             interLocked = false;
         }
@@ -89,29 +90,36 @@ namespace ZeroMQDistributedMonitor
             while(true)
             {
                 string topic = subSocket.ReceiveFrameString();
-                byte[] receivedObj = subSocket.ReceiveFrameBytes();
-                if(topic == _lockTopic)
+                lock(this)
                 {
-                    if (receivedObj.First() == 0)
+                    if (topic == _lockTopic)
                     {
-                        locked = false;
-                        lock (this)
+                        byte[] receivedObj = subSocket.ReceiveFrameBytes();
+                        var lockObj = MessagePackSerializer.Deserialize<Lock<T>>(receivedObj);
+                        if (!lockObj.IsLocked)
+                        {
+                            if (interLocked) Console.WriteLine("INTERLOCKED");
+                            locked = false;
+                            distributedObject = lockObj.Value;
                             Monitor.Pulse(this);
-                    }
-                    if (receivedObj.First() == 1)
-                    {
-                        locked = true;
+                            //Console.WriteLine("unlock");
+                        }
+                        if (lockObj.IsLocked)
+                        {
+                            if (interLocked) Console.WriteLine("INTERLOCKED");
+                            locked = true;
+                            //Console.WriteLine("lock");
+                        }
                     }
                 }
-                if(topic == _objTopic)
-                {
-                    if (interLocked) Console.WriteLine("INTERLOCKED");
-                    distributedObject = MessagePackSerializer.Deserialize<T>(receivedObj);
-                }
+                //if(topic == _objTopic)
+                //{
+                //    byte[] receivedObj = subSocket.ReceiveFrameBytes();
+                //    if (!interLocked)
+                //        distributedObject = MessagePackSerializer.Deserialize<T>(receivedObj);
+                //}
             }
         }
-
-        private T lastDistrObj;
 
         public void Dispose()
         {

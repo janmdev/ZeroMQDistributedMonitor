@@ -9,9 +9,9 @@ Task.Run(() =>
         int counter = 0;
         while (true)
         {
-            Thread.Sleep(500);
             monitor.Execute(list =>
             {
+                Thread.Sleep(200);
                 if (list == default) list = new List<int>();
                 if (list.Count <= 20)
                 {
@@ -20,14 +20,14 @@ Task.Run(() =>
                 }
                 return list;
             });
-            Thread.Sleep(100);
+            //Thread.Sleep(100);
         }
 
     }
 });
 
-Console.WriteLine("Wait for P2");
-Thread.Sleep(5000);
+//Console.WriteLine("Wait for P2");
+Thread.Sleep(2000);
 Console.WriteLine("P2 Start");
 Task.Run(() =>
 {
@@ -38,6 +38,7 @@ Task.Run(() =>
         {
             monitor.Execute(list =>
             {
+                Thread.Sleep(200);
                 if (list == default) list = new List<int>();
                 if (list.Count <= 20)
                 {
@@ -47,7 +48,6 @@ Task.Run(() =>
                 }
                 return list;
             });
-            Thread.Sleep(100);
         }
 
     }
