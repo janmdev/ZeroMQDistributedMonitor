@@ -1,10 +1,9 @@
 ﻿using ZeroMQDistributedMonitor;
 
 Console.WriteLine("Producer");
-
 Task.Run(() =>
 {
-    using (var monitor = new DistrMonitor<List<int>>("127.0.0.1:6665", new string[] { "127.0.0.1:6664", "127.0.0.1:6666" }))
+    using (var monitor = new DistrMonitor<List<int>>(new("127.0.0.1:6665",1), new ZmqAddr[] { new("127.0.0.1:6664",0), new("127.0.0.1:6666",2) }))
     {
         int counter = 0;
         while (true)
@@ -20,18 +19,16 @@ Task.Run(() =>
                 }
                 return list;
             });
-            //Thread.Sleep(100);
         }
 
     }
 });
 
 //Console.WriteLine("Wait for P2");
-Thread.Sleep(2000);
 Console.WriteLine("P2 Start");
 Task.Run(() =>
 {
-    using (var monitor = new DistrMonitor<List<int>>("127.0.0.1:6666", new string[] { "127.0.0.1:6664", "127.0.0.1:6665" }))
+    using (var monitor = new DistrMonitor<List<int>>(new("127.0.0.1:6666",2), new ZmqAddr[] { new("127.0.0.1:6664",0), new("127.0.0.1:6665",1) }))
     {
         int counter = 0;
         while (true)

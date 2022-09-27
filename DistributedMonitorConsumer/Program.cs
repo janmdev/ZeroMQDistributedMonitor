@@ -2,7 +2,7 @@
 
 Console.WriteLine("Consumer");
 
-using (var monitor = new DistrMonitor<List<int>>("127.0.0.1:6664", new string[] { "127.0.0.1:6665", "127.0.0.1:6666" }, false))
+using (var monitor = new DistrMonitor<List<int>>(new("127.0.0.1:6664",0), new ZmqAddr[] { new("127.0.0.1:6665",1), new("127.0.0.1:6666",2) }, false))
 {
     while (true)
     {
@@ -19,6 +19,5 @@ using (var monitor = new DistrMonitor<List<int>>("127.0.0.1:6664", new string[] 
             }
             return list;
         });
-        //Thread.Sleep(120);
     }
 }
